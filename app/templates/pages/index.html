@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}آخر صفقات المطلعين — Insider Tracker{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div>
+    <div class="page-title">📡 آخر صفقات المطلعين</div>
+    <div class="page-sub">تتبع لحظي لصفقات المديرين التنفيذيين والمطلعين</div>
+  </div>
+</div>
+
+<!-- Search -->
+<div class="search-bar">
+  <input class="search-input" id="symbolInput" placeholder="ابحث عن سهم... مثال: AAPL" type="text">
+  <button class="btn-green" onclick="goToStock()">🔍 تحليل</button>
+</div>
+
+<!-- Trades -->
+<div class="card">
+  <div class="card-title">🔴 آخر 30 يوم</div>
+
+  <!-- Header -->
+  <div class="trade-row" style="color:var(--muted);font-size:12px;border-bottom:1px solid var(--border);margin-bottom:8px">
+    <div>النوع</div>
+    <div>المطلع</div>
+    <div>السهم</div>
+    <div>القيمة</div>
+    <div>التاريخ</div>
+    <div>الإشارة</div>
+  </div>
+
+  {% if trades %}
+    {% for t in trades[:40] %}
+    <div class="trade-row {{ t.type }}" onclick="window.location='/stock/{{ t.symbol }}'" style="cursor:pointer">
+      <div>
+        {% if t.type == 'buy' %}
+          <span class="badge-buy">شراء</span>
+        {% else %}
+          <span class="badge-sell">بيع</span>
+        {% endif %}
+      </div>
+      <div>
+        <div style="font-weight:700;font-size:14px">{{ t.name[:20] }}</div>
+      </div>
+      <div>
+        <span style="font-family:var(--mono);font-weight:700;color:var(--blue)">{{ t.symbol }}</span>
+      </div>
+      <div style="font-family:var(--mono);font-size:13px">
+        {% if t.value >= 1000000 %}
+          <span style="color:var(--gold)">${{ "%.1f"|format(t.value/1000000) }}M</span>
+        {% elif t.value >= 1000 %}
+          ${{ "%.0f"|format(t.value/1000) }}K
+        {% else %}
+          ${{ "%.0f"|format(t.value) }}
+        {% endif %}
+      </div>
+      <div style="color:var(--muted);font-size:12px">{{ t.trade_date }}</div>
+      <div>
+        <div class="signal-bar">
+          <div class="signal-fill" style="width:{{ t.signal_score }}%"></div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;font-family:var(--mono)">{{ t.signal_score }}/100</div>
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <div style="text-align:center;padding:40px;color:var(--muted)">لا توجد بيانات متاحة حالياً</div>
+  {% endif %}
+</div>
+
+<script>
+function goToStock() {
+  const s = document.getElementById('symbolInput').value.trim().toUpperCase();
+  if (s) window.location = '/stock/' + s;
+}
+document.getElementById('symbolInput').addEventListener('keypress', e => {
+  if (e.key === 'Enter') goToStock();
+});
+</script>
+{% endblock %}

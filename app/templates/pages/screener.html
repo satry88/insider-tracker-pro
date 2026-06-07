@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}الفلتر الذكي — Insider Tracker{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <div class="page-title">🎯 الفلتر الذكي</div>
+    <div class="page-sub">أسهم بشراء مطلعين مرتفع — فرص محتملة</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px">
+  {% for r in results %}
+  <div class="card" onclick="window.location='/stock/{{ r.symbol }}'" style="cursor:pointer;transition:border-color 0.2s" onmouseover="this.style.borderColor='var(--green)'" onmouseout="this.style.borderColor='var(--border)'">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <div style="font-size:22px;font-weight:900;font-family:var(--mono);color:var(--blue)">{{ r.symbol }}</div>
+      <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--green)">{{ r.top_signal }}</div>
+    </div>
+    <div class="signal-bar" style="height:8px;margin-bottom:12px">
+      <div class="signal-fill" style="width:{{ r.top_signal }}%"></div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <span class="badge-buy">{{ r.buy_count }} شراء</span>
+      {% if r.sell_count %}<span class="badge-sell">{{ r.sell_count }} بيع</span>{% endif %}
+      <span class="tag" style="background:rgba(245,158,11,0.1);color:var(--gold)">
+        {% if r.total_buy_value >= 1000000 %}
+          ${{ "%.1f"|format(r.total_buy_value/1000000) }}M
+        {% else %}
+          ${{ "%.0f"|format(r.total_buy_value/1000) }}K
+        {% endif %}
+      </span>
+    </div>
+  </div>
+  {% else %}
+  <div style="color:var(--muted);grid-column:1/-1;text-align:center;padding:40px">لا توجد نتائج</div>
+  {% endfor %}
+</div>
+{% endblock %}
