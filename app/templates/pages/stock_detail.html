@@ -1,0 +1,672 @@
+{% extends "base.html" %}
+{% block title %}{{ stock.symbol }} — تحليل شامل{% endblock %}
+
+{% block content %}
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --gold:   #F59E0B;
+  --green:  #10B981;
+  --red:    #EF4444;
+  --blue:   #3B82F6;
+  --purple: #8B5CF6;
+  --bg:     #070B14;
+  --panel:  #0D1420;
+  --border: rgba(255,255,255,0.07);
+  --text:   #E2E8F0;
+  --muted:  #64748B;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Tajawal', sans-serif; background: var(--bg); color: var(--text); direction: rtl; }
+.page-wrap { max-width: 1280px; margin: 0 auto; padding: 24px 20px 60px; }
+.stock-hero { display: flex; align-items: center; gap: 20px; background: linear-gradient(135deg, #0D1420 0%, #111827 100%); border: 1px solid var(--border); border-radius: 20px; padding: 28px 32px; margin-bottom: 24px; position: relative; overflow: hidden; }
+.stock-hero::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--gold), var(--purple), var(--blue)); }
+.stock-logo { width: 64px; height: 64px; border-radius: 14px; background: rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: 900; color: var(--gold); border: 1px solid rgba(255,255,255,0.1); flex-shrink: 0; font-family: 'JetBrains Mono'; }
+.stock-logo img { width: 100%; height: 100%; border-radius: 14px; object-fit: cover; }
+.stock-info { flex: 1; }
+.stock-symbol { font-family: 'JetBrains Mono'; font-size: 28px; font-weight: 700; color: #fff; }
+.stock-name   { font-size: 15px; color: var(--muted); margin-top: 2px; }
+.stock-sector { font-size: 12px; color: var(--purple); margin-top: 4px; }
+.stock-price-block { text-align: left; }
+.stock-price  { font-family: 'JetBrains Mono'; font-size: 36px; font-weight: 700; color: #fff; }
+.stock-change { font-size: 14px; font-weight: 600; margin-top: 4px; }
+.stock-change.up { color: var(--green); }
+.stock-change.down { color: var(--red); }
+.scores-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+.score-pill { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; text-align: center; position: relative; overflow: hidden; }
+.score-pill::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3px; }
+.score-pill.catalyst::after { background: var(--gold); }
+.score-pill.rs::after       { background: var(--blue); }
+.score-pill.leader::after   { background: var(--purple); }
+.score-pill.piotroski::after{ background: var(--green); }
+.sp-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; letter-spacing: 0.5px; }
+.sp-value { font-family: 'JetBrains Mono'; font-size: 26px; font-weight: 700; }
+.sp-sub   { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.ratings-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+.r-card { background: var(--panel); border: 1px solid var(--border); border-radius: 18px; padding: 22px; position: relative; overflow: hidden; transition: transform 0.2s, box-shadow 0.2s; }
+.r-card:hover { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(0,0,0,0.4); }
+.r-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+.r-card.health::before { background: linear-gradient(90deg,#10B981,#34D399); }
+.r-card.fv::before     { background: linear-gradient(90deg,#F59E0B,#FBBF24); }
+.r-card.ncr::before    { background: linear-gradient(90deg,#8B5CF6,#3B82F6); }
+.rc-header { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.rc-icon   { font-size: 20px; }
+.rc-title  { font-size: 12px; color: var(--muted); font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+.health-grade { font-size: 56px; font-weight: 900; line-height: 1; margin-bottom: 4px; font-family: 'JetBrains Mono'; }
+.health-lbl   { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+.h-bar-wrap   { background: rgba(255,255,255,0.06); border-radius: 99px; height: 5px; margin-bottom: 14px; }
+.h-bar-fill   { height: 5px; border-radius: 99px; }
+.hd-row { display: flex; justify-content: space-between; font-size: 12px; padding: 5px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.hd-row span:last-child { font-weight: 600; color: #F1F5F9; }
+.badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.badge { font-size: 10px; padding: 3px 8px; border-radius: 99px; font-weight: 600; }
+.badge.g { background: rgba(16,185,129,.15); color: #10B981; }
+.badge.r { background: rgba(239,68,68,.15);  color: #EF4444; }
+.fv-icon { font-size: 44px; text-align: center; margin-bottom: 6px; }
+.fv-lbl  { text-align: center; font-size: 16px; font-weight: 700; margin-bottom: 14px; }
+.upside-box { text-align: center; font-size: 20px; font-weight: 800; padding: 10px; border-radius: 12px; margin-bottom: 14px; font-family: 'JetBrains Mono'; }
+.upside-box.up  { background: rgba(16,185,129,.12); color: #10B981; }
+.upside-box.dn  { background: rgba(239,68,68,.12);  color: #EF4444; }
+.upside-box.neu { background: rgba(245,158,11,.12); color: #F59E0B; }
+.price-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.pg-box { background: rgba(255,255,255,0.04); border-radius: 10px; padding: 10px; text-align: center; }
+.pg-lbl { font-size: 10px; color: var(--muted); margin-bottom: 3px; }
+.pg-val { font-size: 15px; font-weight: 700; font-family: 'JetBrains Mono'; }
+.methods { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; }
+.m-tag { font-size: 10px; background: rgba(255,255,255,0.06); padding: 2px 8px; border-radius: 99px; color: var(--muted); }
+.ncr-score { font-size: 48px; font-weight: 900; text-align: center; font-family: 'JetBrains Mono'; }
+.ncr-stars { text-align: center; font-size: 24px; color: #F59E0B; margin: 4px 0 8px; }
+.ncr-rec   { text-align: center; font-size: 14px; font-weight: 700; padding: 7px 16px; border-radius: 99px; display: inline-block; width: 100%; margin-bottom: 14px; }
+.axis-row  { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 11px; }
+.ax-lbl    { width: 52px; color: var(--muted); text-align: right; flex-shrink: 0; }
+.ax-wrap   { flex: 1; background: rgba(255,255,255,0.06); border-radius: 99px; height: 4px; }
+.ax-fill   { height: 4px; border-radius: 99px; }
+.ax-sc     { width: 26px; text-align: left; font-weight: 600; font-family: 'JetBrains Mono'; font-size: 11px; }
+.ax-wt     { color: var(--muted); font-size: 10px; }
+.signals   { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.sig { font-size: 10px; padding: 3px 8px; border-radius: 99px; }
+.sig.p { background: rgba(16,185,129,.12); color: #10B981; }
+.sig.n { background: rgba(239,68,68,.12);  color: #EF4444; }
+.sig.m { background: rgba(255,255,255,.06);color: var(--muted); }
+.inst-card { background: var(--panel); border: 1px solid var(--border); border-radius: 18px; padding: 22px; margin-bottom: 24px; position: relative; overflow: hidden; }
+.inst-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, #F59E0B, #8B5CF6, #3B82F6); }
+.inst-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+.inst-title  { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; color: #F59E0B; }
+.inst-score-badge { font-size: 13px; font-weight: 800; padding: 6px 16px; border-radius: 99px; font-family: 'JetBrains Mono'; }
+.inst-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+.inst-metric { background: rgba(255,255,255,0.04); border-radius: 12px; padding: 14px; text-align: center; }
+.im-label { font-size: 10px; color: #64748B; margin-bottom: 6px; letter-spacing: 0.5px; }
+.im-value { font-size: 20px; font-weight: 800; font-family: 'JetBrains Mono'; }
+.im-sub   { font-size: 11px; color: #64748B; margin-top: 3px; }
+.holders-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 14px; }
+.holders-table th { text-align: right; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.08); color: #64748B; font-weight: 600; font-size: 11px; }
+.holders-table td { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.04); color: #E2E8F0; }
+.h-buying  { color: #10B981; font-weight: 700; }
+.h-selling { color: #EF4444; font-weight: 700; }
+.h-neutral { color: #64748B; }
+.insider-flow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+.if-box   { background: rgba(255,255,255,0.04); border-radius: 12px; padding: 14px; }
+.if-title { font-size: 11px; color: #64748B; margin-bottom: 8px; font-weight: 600; }
+.if-value { font-size: 22px; font-weight: 800; font-family: 'JetBrains Mono'; }
+.if-sub   { font-size: 11px; color: #64748B; margin-top: 3px; }
+.flow-signals { display: flex; flex-wrap: wrap; gap: 6px; }
+.flow-sig { font-size: 11px; padding: 4px 10px; border-radius: 99px; font-weight: 600; }
+.flow-sig.positive { background: rgba(16,185,129,.12); color: #10B981; }
+.flow-sig.negative { background: rgba(239,68,68,.12);  color: #EF4444; }
+.flow-sig.neutral  { background: rgba(255,255,255,.06);color: #64748B; }
+.nf-bar-bg   { background: rgba(255,255,255,0.07); border-radius: 99px; height: 8px; }
+.nf-bar-fill { height: 8px; border-radius: 99px; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+.full-col { margin-bottom: 24px; }
+.section-card { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 20px; }
+.sec-title { font-size: 14px; font-weight: 700; color: var(--gold); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+.fund-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.fund-table td { padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.fund-table td:last-child { text-align: left; font-weight: 600; color: #F1F5F9; font-family: 'JetBrains Mono'; font-size: 12px; }
+.fund-table .na-val { color: #64748B; font-style: italic; }
+.ma-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px; }
+.ma-badge { font-size: 11px; padding: 3px 10px; border-radius: 99px; font-weight: 600; }
+.ma-badge.above { background: rgba(16,185,129,.15); color: #10B981; }
+.ma-badge.below { background: rgba(239,68,68,.15);  color: #EF4444; }
+.catalyst-item { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.c-days { font-family: 'JetBrains Mono'; font-weight: 700; color: var(--gold); min-width: 38px; }
+.c-info { flex: 1; }
+.c-name { font-weight: 600; }
+.c-date { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.impact { font-size: 10px; padding: 2px 8px; border-radius: 99px; font-weight: 600; }
+.impact.High   { background: rgba(239,68,68,.15); color: #EF4444; }
+.impact.Medium { background: rgba(245,158,11,.15); color: #F59E0B; }
+.impact.Low    { background: rgba(100,116,139,.15); color: #64748B; }
+.news-item { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.news-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.news-meta  { font-size: 11px; color: var(--muted); }
+.news-sentiment { font-size: 10px; padding: 2px 8px; border-radius: 99px; font-weight: 600; margin-right: 6px; }
+.news-sentiment.Positive { background: rgba(16,185,129,.15); color: #10B981; }
+.news-sentiment.Negative { background: rgba(239,68,68,.15);  color: #EF4444; }
+.news-sentiment.Neutral  { background: rgba(100,116,139,.15);color: #64748B; }
+.insider-row { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; }
+.ins-buy  { color: #10B981; font-weight: 700; }
+.ins-sell { color: #EF4444; font-weight: 700; }
+.verdict-box { background: linear-gradient(135deg, rgba(139,92,246,0.1), rgba(59,130,246,0.05)); border: 1px solid rgba(139,92,246,0.2); border-radius: 16px; padding: 20px; margin-bottom: 24px; }
+.verdict-rank { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.v-icon  { font-size: 28px; }
+.v-rank  { font-size: 20px; font-weight: 900; }
+.v-conf  { font-size: 12px; color: var(--muted); margin-right: auto; }
+.v-text  { font-size: 14px; color: #CBD5E1; margin-bottom: 14px; line-height: 1.6; }
+.v-lists { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.vl-title { font-size: 12px; font-weight: 700; margin-bottom: 8px; }
+.vl-item  { font-size: 12px; color: #94A3B8; padding: 3px 0; display: flex; gap: 6px; }
+@media (max-width: 900px) {
+  .ratings-row, .two-col, .v-lists, .inst-grid, .insider-flow { grid-template-columns: 1fr; }
+  .scores-bar { grid-template-columns: repeat(2,1fr); }
+}
+</style>
+
+{% macro pct_val(v, decimals=1) %}
+  {%- if v is not none and v != 0 -%}{{ "%.{}f".format(decimals)|format(v|float * 100) }}%{%- else -%}<span class="na-val">—</span>{%- endif -%}
+{% endmacro %}
+{% macro num_val(v, decimals=2, suffix='') %}
+  {%- if v is not none and v != 0 -%}{{ "%.{}f".format(decimals)|format(v|float) }}{{ suffix }}{%- else -%}<span class="na-val">—</span>{%- endif -%}
+{% endmacro %}
+{% macro money_val(v, decimals=1, suffix='B') %}
+  {%- if v is not none and v != 0 -%}${{ "%.{}f".format(decimals)|format(v|float) }}{{ suffix }}{%- else -%}<span class="na-val">—</span>{%- endif -%}
+{% endmacro %}
+
+{# ── متغيرات آمنة لكل بيانات الـ dicts ── #}
+{% set _health   = health   if health   is mapping else {} %}
+{% set _fv       = fv       if fv       is mapping else {} %}
+{% set _ncr      = ncr      if ncr      is mapping else {} %}
+{% set _hdet     = _health.get('details') if _health.get('details') is mapping else {} %}
+
+<div class="page-wrap">
+
+  <!-- Hero -->
+  <div class="stock-hero">
+    <div class="stock-logo">
+      {% if stock.logo_url %}
+        <img src="{{ stock.logo_url }}" alt="{{ stock.symbol }}" onerror="this.style.display='none';this.parentElement.textContent='{{ stock.symbol[0] }}'">
+      {% else %}{{ stock.symbol[0] }}{% endif %}
+    </div>
+    <div class="stock-info">
+      <div class="stock-symbol">{{ stock.symbol }}</div>
+      <div class="stock-name">{{ stock.company_name or stock.symbol }}</div>
+      <div class="stock-sector">{{ stock.sector or '' }} {% if stock.industry %}· {{ stock.industry }}{% endif %}</div>
+    </div>
+    <div class="stock-price-block">
+      <div class="stock-price">${{ "%.2f"|format(stock.current_price or 0) }}</div>
+      {% if stock.price_change_pct %}
+      <div class="stock-change {% if stock.price_change_pct >= 0 %}up{% else %}down{% endif %}">
+        {% if stock.price_change_pct >= 0 %}▲{% else %}▼{% endif %}
+        {{ "%.2f"|format(stock.price_change_pct|abs) }}%
+      </div>
+      {% endif %}
+      <a href="/report/{{ stock.symbol }}"
+         style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;background:linear-gradient(135deg,#8B5CF6,#3B82F6);border:none;border-radius:10px;padding:8px 16px;color:#fff;font-size:12px;font-weight:700;text-decoration:none;cursor:pointer;transition:opacity 0.2s;"
+         onmouseover="this.style.opacity=0.85" onmouseout="this.style.opacity=1">
+        📋 التقرير الشامل
+      </a>
+    </div>
+  </div>
+
+  <!-- Scores Bar -->
+  <div class="scores-bar">
+    <div class="score-pill catalyst">
+      <div class="sp-label">🎯 Catalyst Score</div>
+      <div class="sp-value" style="color:#F59E0B">{{ stock.catalyst_score or 0 }}</div>
+      <div class="sp-sub">من 100</div>
+    </div>
+    <div class="score-pill rs">
+      <div class="sp-label">📈 RS Rating</div>
+      <div class="sp-value" style="color:#3B82F6">{{ stock.rs_rating or '—' }}</div>
+      <div class="sp-sub">من 99</div>
+    </div>
+    <div class="score-pill leader" style="cursor:pointer;user-select:none" onclick="showX10Popup()">
+      <div class="sp-label">🚀 X10 Potential <span style="font-size:9px;color:#8B5CF6">← اضغط للشرح</span></div>
+      <div class="sp-value" style="color:#8B5CF6">
+        {% if x10_data %}{{ x10_data.potential_icon }} {{ x10_data.score }}{% else %}{{ stock.x10_potential or '—' }}{% endif %}
+      </div>
+      <div class="sp-sub">{% if x10_data %}{{ x10_data.potential_label }}{% else %}من 99{% endif %}</div>
+    </div>
+    <div class="score-pill piotroski">
+      <div class="sp-label">📊 Piotroski</div>
+      <div class="sp-value" style="color:#10B981">{{ stock.piotroski_score or '—' }}</div>
+      <div class="sp-sub">من 9</div>
+    </div>
+  </div>
+
+  <!-- Ratings Row -->
+  <div class="ratings-row">
+
+    <!-- 🏥 Health -->
+    <div class="r-card health">
+      <div class="rc-header"><span class="rc-icon">🏥</span><span class="rc-title">السلامة المالية</span></div>
+      <div class="health-grade" style="color:{{ _health.get('grade_color','#6B7280') }}">{{ _health.get('grade','N/A') }}</div>
+      <div class="health-lbl">{{ _health.get('label','—') }}</div>
+      <div class="h-bar-wrap"><div class="h-bar-fill" style="width:{{ _health.get('score',0) }}%;background:{{ _health.get('grade_color','#6B7280') }}"></div></div>
+      <div>
+        {% set de = _hdet.get('debt_equity') %}
+        {% if de is not none and de != 0 %}
+        <div class="hd-row"><span>الديون / حقوق الملكية</span><span>{{ de }}x</span></div>
+        {% endif %}
+        {% set cr = _hdet.get('current_ratio') %}
+        {% if cr is not none and cr != 0 %}
+        <div class="hd-row"><span>نسبة السيولة</span><span>{{ cr }}</span></div>
+        {% endif %}
+        {% set ic = _hdet.get('interest_coverage') %}
+        {% if ic is not none and ic != 99 and ic != 0 %}
+        <div class="hd-row"><span>تغطية الفوائد</span><span>{{ ic }}x</span></div>
+        {% endif %}
+        {% set nm = _hdet.get('net_margin') %}
+        {% if nm is not none and nm != 0 %}
+        <div class="hd-row"><span>هامش الربح الصافي</span><span>{{ nm }}%</span></div>
+        {% endif %}
+        {% set rg = _hdet.get('revenue_growth') %}
+        {% if rg is not none and rg != 0 %}
+        <div class="hd-row">
+          <span>نمو الإيرادات</span>
+          <span style="color:{% if rg > 0 %}#10B981{% else %}#EF4444{% endif %}">{{ rg }}%</span>
+        </div>
+        {% endif %}
+        {% set fcf = _hdet.get('free_cash_flow') %}
+        {% if fcf is not none and fcf != 0 %}
+        <div class="hd-row"><span>التدفق النقدي الحر</span><span>${{ fcf }}M</span></div>
+        {% endif %}
+      </div>
+      <div class="badges">
+        {% for s in _health.get('strengths',[]) %}<span class="badge g">✅ {{ s }}</span>{% endfor %}
+        {% for w in _health.get('weaknesses',[]) %}<span class="badge r">⚠️ {{ w }}</span>{% endfor %}
+      </div>
+    </div>
+
+    <!-- 💰 Fair Value -->
+    <div class="r-card fv">
+      <div class="rc-header"><span class="rc-icon">💰</span><span class="rc-title">القيمة العادلة</span></div>
+      <div class="fv-icon">{{ _fv.get('verdict_icon','⚪') }}</div>
+      <div class="fv-lbl" style="color:{{ _fv.get('verdict_color','#6B7280') }}">{{ _fv.get('verdict_ar','—') }}</div>
+      {% set fv_upside = _fv.get('upside_pct') %}
+      {% if fv_upside is not none %}
+      <div class="upside-box {% if fv_upside > 5 %}up{% elif fv_upside < -5 %}dn{% else %}neu{% endif %}">
+        {% if fv_upside > 0 %}📈 +{% else %}📉 {% endif %}{{ fv_upside }}%
+      </div>
+      {% endif %}
+      <div class="price-grid">
+        {% set fv_price = _fv.get('current_price') %}
+        {% if fv_price %}<div class="pg-box"><div class="pg-lbl">السعر الحالي</div><div class="pg-val">${{ fv_price }}</div></div>{% endif %}
+        {% set fv_comp = _fv.get('fair_value_composite') %}
+        {% if fv_comp %}<div class="pg-box"><div class="pg-lbl">القيمة العادلة</div><div class="pg-val" style="color:{{ _fv.get('verdict_color','#6B7280') }}">${{ fv_comp }}</div></div>{% endif %}
+        {% set fv_target = _fv.get('analyst_target') %}
+        {% if fv_target %}<div class="pg-box"><div class="pg-lbl">هدف المحللين</div><div class="pg-val">${{ fv_target }}</div></div>{% endif %}
+        {% set fv_au = _fv.get('analyst_upside') %}
+        {% if fv_au is not none %}<div class="pg-box"><div class="pg-lbl">صعود المحللين</div><div class="pg-val {% if fv_au > 0 %}" style="color:#10B981{% endif %}">{{ fv_au }}%</div></div>{% endif %}
+      </div>
+      {% set fv_methods = _fv.get('methods_used',[]) %}
+      {% if fv_methods %}
+      <div class="methods">
+        {% for m in fv_methods %}<span class="m-tag">{{ m }}</span>{% endfor %}
+        <span class="m-tag">ثقة {{ _fv.get('confidence',0) }}/4</span>
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- 🎯 Next Catalyst Rating -->
+    <div class="r-card ncr">
+      <div class="rc-header"><span class="rc-icon">🎯</span><span class="rc-title">Next Catalyst Rating</span></div>
+      <div class="ncr-score" style="color:{{ _ncr.get('rec_color','#6B7280') }}">{{ _ncr.get('overall_score',0) }}</div>
+      <div class="ncr-stars">{{ _ncr.get('star_rating','☆☆☆☆☆') }}</div>
+      <div style="text-align:center">
+        <span class="ncr-rec" style="background:{{ _ncr.get('rec_color','#6B7280') }}22;color:{{ _ncr.get('rec_color','#6B7280') }}">
+          {{ _ncr.get('rec_icon','') }} {{ _ncr.get('recommendation_ar','N/A') }}
+        </span>
+      </div>
+      {% set ncr_breakdown = _ncr.get('breakdown',{}) %}
+      {% if ncr_breakdown %}
+      <div>
+        {% for key, ax in ncr_breakdown.items() %}
+        <div class="axis-row">
+          <span class="ax-lbl">{{ ax.get('label','') }}</span>
+          <div class="ax-wrap"><div class="ax-fill" style="width:{{ ax.get('score',0) }}%;background:{{ _ncr.get('rec_color','#6B7280') }}"></div></div>
+          <span class="ax-sc">{{ ax.get('score',0) }}</span>
+          <span class="ax-wt">{{ ax.get('weight',0) }}%</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% set ncr_signals = _ncr.get('signals',[]) %}
+      {% if ncr_signals %}
+      <div class="signals">
+        {% for sig in ncr_signals[:5] %}
+        {% set sig_type = sig.get('type','neutral') if sig is mapping else 'neutral' %}
+        <span class="sig {% if sig_type=='positive' %}p{% elif sig_type=='negative' %}n{% else %}m{% endif %}">
+          {% if sig_type=='positive' %}✅{% elif sig_type=='negative' %}⚠️{% else %}ℹ️{% endif %}
+          {{ sig.get('text','') if sig is mapping else sig }}
+        </span>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- 🚀 Pre-Breakout Engine -->
+  {% if prebreakout and prebreakout is mapping and not prebreakout.get('error') %}
+  {% set pb = prebreakout %}
+  {% set pb_color = '#10B981' if pb.get('score',0) >= 75 else ('#3B82F6' if pb.get('score',0) >= 60 else ('#F59E0B' if pb.get('score',0) >= 45 else '#64748B')) %}
+  <div class="inst-card" style="margin-bottom:24px">
+    <div class="inst-header">
+      <div class="inst-title"><span>🚀</span><span>Pre-Breakout — كاشف الانطلاق المبكر</span></div>
+      <span class="inst-score-badge" style="background:{{ pb_color }}22;color:{{ pb_color }}">
+        {{ pb.get('emoji','') }} {{ pb.get('score',0) }}/100 — {{ pb.get('verdict','') }}
+      </span>
+    </div>
+
+    <!-- شريط الدرجة -->
+    <div style="margin:6px 0 18px">
+      <div style="background:rgba(255,255,255,0.06);border-radius:99px;height:12px;overflow:hidden">
+        <div style="width:{{ pb.get('score',0) }}%;height:100%;background:{{ pb_color }};border-radius:99px"></div>
+      </div>
+    </div>
+
+    <!-- الدرجات الفرعية -->
+    {% set comp = pb.get('components',{}) %}
+    {% set labels = {'ema':'EMA 21/50','macd':'MACD','rs':'القوة النسبية','rvol':'قفزة الحجم','atr':'ATR','adx':'ADX','bollinger':'بولينجر','obv':'OBV','cmf':'CMF','donchian':'Donchian'} %}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:18px">
+      {% for key, lbl in labels.items() %}
+      {% set sc = (comp.get(key,{}).get('score',0) * 100) | round | int %}
+      <div style="background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:10px 12px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:6px">{{ lbl }}</div>
+        <div style="background:rgba(255,255,255,0.06);border-radius:99px;height:6px;overflow:hidden">
+          <div style="width:{{ sc }}%;height:100%;background:{{ pb_color }}"></div>
+        </div>
+        <div style="font-family:'JetBrains Mono';font-size:13px;margin-top:5px;color:{{ pb_color }}">{{ sc }}%</div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- الأسباب -->
+    {% set reasons = pb.get('reasons',[]) %}
+    {% if reasons %}
+    <div style="display:flex;flex-wrap:wrap;gap:8px">
+      {% for r in reasons %}
+      <span style="font-size:12.5px;padding:6px 12px;border-radius:99px;background:rgba(255,255,255,0.04);border:1px solid var(--border)">
+        {{ r[0] }} {{ r[1] }}
+      </span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div style="font-size:11px;color:var(--muted);margin-top:14px;line-height:1.7">
+      ⚠️ تحليل فني تعليمي وليس توصية. يدمج 12 مؤشرًا (EMA, MACD, RS, RVOL, ATR, ADX, Bollinger, OBV, CMF, Donchian) لاكتشاف الأسهم <b>قبل</b> انطلاقها.
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Institutional Flow -->
+  {% if inst_flow and inst_flow is mapping %}
+  <div class="inst-card">
+    <div class="inst-header">
+      <div class="inst-title"><span>🏛</span><span>التدفق المؤسسي — Institutional Flow</span></div>
+      <span class="inst-score-badge" style="background:{{ inst_flow.get('flow_color','#6B7280') }}22;color:{{ inst_flow.get('flow_color','#6B7280') }}">
+        {{ inst_flow.get('flow_icon','') }} {{ inst_flow.get('flow_label','') }}
+      </span>
+    </div>
+    <div style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:6px">
+        <span style="color:#64748B">صافي التدفق المؤسسي</span>
+        <span style="color:{{ inst_flow.get('flow_color','#6B7280') }};font-weight:700">{{ inst_flow.get('net_score',0) }}/100</span>
+      </div>
+      <div class="nf-bar-bg">
+        <div class="nf-bar-fill" style="width:{{ inst_flow.get('net_score',0) }}%;background:{{ inst_flow.get('flow_color','#6B7280') }}"></div>
+      </div>
+    </div>
+    {% set _inst = inst_flow.get('institutional',{}) if inst_flow.get('institutional') is mapping else {} %}
+    <div class="inst-grid">
+      <div class="inst-metric">
+        <div class="im-label">🏦 عدد المؤسسات</div>
+        <div class="im-value" style="color:#3B82F6">{{ _inst.get('total_institutions') or '—' }}</div>
+        <div class="im-sub">مؤسسة تمتلك</div>
+      </div>
+      <div class="inst-metric">
+        <div class="im-label">📊 نسبة الملكية</div>
+        <div class="im-value" style="color:#8B5CF6">
+          {% if _inst.get('institutional_pct') %}{{ _inst.get('institutional_pct') }}%{% else %}—{% endif %}
+        </div>
+        <div class="im-sub">من الأسهم</div>
+      </div>
+      <div class="inst-metric">
+        <div class="im-label">🔄 النشاط الحالي</div>
+        {% set net_act = _inst.get('net_activity','') %}
+        <div class="im-value" style="font-size:14px;padding-top:4px;color:{% if net_act=='buying' %}#10B981{% elif net_act=='selling' %}#EF4444{% else %}#F4D03F{% endif %}">
+          {% if net_act == 'buying' %}🟢 شراء{% elif net_act == 'selling' %}🔴 بيع{% else %}⚪ محايد{% endif %}
+        </div>
+        <div class="im-sub">المؤسسات الكبرى</div>
+      </div>
+    </div>
+    {% set top_holders = _inst.get('top_holders',[]) %}
+    {% if top_holders %}
+    <div style="margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;color:#9CA3AF;margin-bottom:10px">🏆 كبار المساهمين المؤسسيين</div>
+      <table class="holders-table">
+        <thead><tr><th>المؤسسة</th><th>الأسهم</th><th>التغيير</th><th>النشاط</th></tr></thead>
+        <tbody>
+          {% for h in top_holders[:6] %}
+          {% set h_change = h.get('change',0) or 0 %}
+          <tr>
+            <td style="font-weight:600">{{ (h.get('name','') or '')[:30] }}</td>
+            <td style="font-family:'JetBrains Mono'">{{ "{:,.0f}".format(h.get('shares',0)) if h.get('shares') else '—' }}</td>
+            <td style="font-family:'JetBrains Mono';color:{% if h_change > 0 %}#10B981{% elif h_change < 0 %}#EF4444{% else %}#64748B{% endif %}">
+              {% if h_change > 0 %}+{% endif %}{{ "{:,.0f}".format(h_change) }}
+            </td>
+            <td class="{% if h_change > 0 %}h-buying{% elif h_change < 0 %}h-selling{% else %}h-neutral{% endif %}">{{ h.get('activity','') }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% endif %}
+    {% set _ins = inst_flow.get('insider') %}
+    {% if _ins and _ins is mapping %}
+    <div class="insider-flow">
+      <div class="if-box">
+        <div class="if-title">🟢 شراء المطلعين (90 يوم)</div>
+        <div class="if-value" style="color:#10B981">{{ _ins.get('buy_count',0) }}</div>
+        {% set bv = _ins.get('buy_value',0) or 0 %}
+        <div class="if-sub">صفقة — ${{ "{:.1f}M".format(bv/1e6) if bv >= 1e6 else "{:.0f}K".format(bv/1e3) if bv >= 1e3 else "0" }}</div>
+      </div>
+      <div class="if-box">
+        <div class="if-title">🔴 بيع المطلعين (90 يوم)</div>
+        <div class="if-value" style="color:#EF4444">{{ _ins.get('sell_count',0) }}</div>
+        {% set sv = _ins.get('sell_value',0) or 0 %}
+        <div class="if-sub">صفقة — ${{ "{:.1f}M".format(sv/1e6) if sv >= 1e6 else "{:.0f}K".format(sv/1e3) if sv >= 1e3 else "0" }}</div>
+      </div>
+    </div>
+    {% endif %}
+    {% set flow_sigs = inst_flow.get('signals',[]) %}
+    {% if flow_sigs %}
+    <div class="flow-signals">
+      {% for sig in flow_sigs[:6] %}
+      {% set st = sig.get('type','neutral') if sig is mapping else 'neutral' %}
+      <span class="flow-sig {{ st }}">{{ sig.get('icon','') if sig is mapping else '' }} {{ sig.get('text','') if sig is mapping else sig }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- AI Verdict -->
+  {% if stock.ai_verdict and stock.ai_verdict is mapping %}
+  {% set v = stock.ai_verdict %}
+  <div class="verdict-box">
+    <div class="verdict-rank">
+      <span class="v-icon">{{ v.get('rank_icon','') }}</span>
+      <span class="v-rank" style="color:{{ v.get('rank_color','#6B7280') }}">{{ v.get('rank','') }}</span>
+      <span class="v-conf">ثقة {{ v.get('confidence',0) }}%</span>
+    </div>
+    <div class="v-text">{{ v.get('verdict_text','') }}</div>
+    <div class="v-lists">
+      <div>
+        <div class="vl-title" style="color:#10B981">🚀 المحفزات</div>
+        {% for c in v.get('catalysts',[]) %}<div class="vl-item">▸ {{ c }}</div>{% endfor %}
+      </div>
+      <div>
+        <div class="vl-title" style="color:#EF4444">⚠️ المخاطر</div>
+        {% for r in v.get('risks',[]) %}<div class="vl-item">▸ {{ r }}</div>{% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Two Col: Fundamentals + MA -->
+  <div class="two-col">
+    <div class="section-card">
+      <div class="sec-title">📊 المعايير الأساسية</div>
+      <table class="fund-table">
+        <tr>
+          <td>القيمة السوقية</td>
+          <td>{% if stock.market_cap and stock.market_cap != 0 %}${{ "%.1f"|format(stock.market_cap/1000) }}B{% else %}<span class="na-val">—</span>{% endif %}</td>
+        </tr>
+        {% set rg = stock.revenue_growth %}
+        {% if rg is not none and rg != 0 %}
+        <tr>
+          <td>نمو الإيرادات</td>
+          <td style="color:{% if rg > 0 %}#10B981{% else %}#EF4444{% endif %}">
+            {% if rg|abs < 5 %}{{ "%.1f"|format(rg * 100) }}%{% else %}{{ "%.1f"|format(rg) }}%{% endif %}
+          </td>
+        </tr>
+        {% endif %}
+        {% set eg = stock.earnings_growth %}
+        {% if eg is not none and eg != 0 %}
+        <tr>
+          <td>نمو الأرباح</td>
+          <td style="color:{% if eg > 0 %}#10B981{% else %}#EF4444{% endif %}">
+            {% if eg|abs < 5 %}{{ "%.1f"|format(eg * 100) }}%{% else %}{{ "%.1f"|format(eg) }}%{% endif %}
+          </td>
+        </tr>
+        {% endif %}
+        {% set roe = stock.roe %}
+        {% if roe is not none and roe != 0 %}
+        <tr>
+          <td>العائد على حقوق الملكية</td>
+          <td>{% if roe|abs < 5 %}{{ "%.1f"|format(roe * 100) }}%{% else %}{{ "%.1f"|format(roe) }}%{% endif %}</td>
+        </tr>
+        {% endif %}
+        {% set de = stock.debt_to_equity %}
+        {% if de is not none and de != 0 %}
+        <tr><td>الدين / حقوق الملكية</td><td>{{ "%.2f"|format(de) }}x</td></tr>
+        {% endif %}
+        {% if stock.gross_margin %}
+        <tr><td>هامش الربح الخام</td><td>{{ stock.gross_margin }}%</td></tr>
+        {% endif %}
+        {% if stock.free_cash_flow %}
+        <tr><td>التدفق النقدي الحر</td><td>${{ stock.free_cash_flow }}M</td></tr>
+        {% endif %}
+        {% if stock.roa %}
+        <tr><td>العائد على الأصول</td><td>{{ stock.roa }}%</td></tr>
+        {% endif %}
+        {% if not stock.market_cap and not stock.revenue_growth and not stock.earnings_growth and not stock.roe %}
+        <tr><td colspan="2" style="text-align:center;color:#64748B;padding:20px 0;font-size:13px">📭 البيانات الأساسية غير متوفرة</td></tr>
+        {% endif %}
+      </table>
+    </div>
+    <div class="section-card">
+      <div class="sec-title">📈 الموقع الفني</div>
+      {% if stock.ma_data and stock.ma_data is mapping %}{% set ma = stock.ma_data %}
+      <div class="ma-row"><span>MA 20</span><span>${{ ma.get('ma20') or '—' }}</span><span class="ma-badge {% if ma.get('above_ma20') %}above{% else %}below{% endif %}">{% if ma.get('above_ma20') %}فوق{% else %}تحت{% endif %}</span></div>
+      <div class="ma-row"><span>MA 50</span><span>${{ ma.get('ma50') or '—' }}</span><span class="ma-badge {% if ma.get('above_ma50') %}above{% else %}below{% endif %}">{% if ma.get('above_ma50') %}فوق{% else %}تحت{% endif %}</span></div>
+      <div class="ma-row"><span>MA 200</span><span>${{ ma.get('ma200') or '—' }}</span><span class="ma-badge {% if ma.get('above_ma200') %}above{% else %}below{% endif %}">{% if ma.get('above_ma200') %}فوق{% else %}تحت{% endif %}</span></div>
+      {% else %}
+      <div style="color:#64748B;font-size:13px;padding:10px 0">لا توجد بيانات فنية</div>
+      {% endif %}
+      <div style="margin-top:14px">
+        <div class="sec-title" style="margin-bottom:10px">🎯 أهداف السعر (24 شهر)</div>
+        {% if stock.price_targets and stock.price_targets is mapping %}{% set pt = stock.price_targets %}
+        <div class="ma-row"><span>متحفظ</span><span>${{ pt.get('conservative') }}</span><span style="color:#64748B;font-size:11px">+{{ pt.get('conservative_upside') }}%</span></div>
+        <div class="ma-row"><span>أساسي</span><span>${{ pt.get('base') }}</span><span style="color:#F59E0B;font-size:11px">+{{ pt.get('base_upside') }}%</span></div>
+        <div class="ma-row"><span>متفائل</span><span>${{ pt.get('optimistic') }}</span><span style="color:#10B981;font-size:11px">+{{ pt.get('optimistic_upside') }}%</span></div>
+        {% else %}
+        <div style="color:#64748B;font-size:13px">لا توجد أهداف سعرية</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Catalysts + News -->
+  <div class="two-col">
+    <div class="section-card">
+      <div class="sec-title">⚡ المحفزات القادمة</div>
+      {% if catalysts %}{% for c in catalysts[:6] %}
+      <div class="catalyst-item">
+        <div class="c-days">{{ c.days_until or '?' }}د</div>
+        <div class="c-info"><div class="c-name">{{ c.event_type }}</div><div class="c-date">{{ c.event_date or '' }}</div></div>
+        <span class="impact {{ c.impact_level }}">{{ c.impact_level }}</span>
+      </div>
+      {% endfor %}{% else %}<p style="color:var(--muted);font-size:13px">لا توجد محفزات مسجّلة</p>{% endif %}
+    </div>
+    <div class="section-card">
+      <div class="sec-title">📰 آخر الأخبار</div>
+      {% if news %}{% for n in news[:5] %}
+      <div class="news-item">
+        <div class="news-title"><span class="news-sentiment {{ n.sentiment }}">{{ n.sentiment }}</span>{{ n.headline }}</div>
+        <div class="news-meta">{{ n.source }} · {{ n.published_at.strftime('%Y-%m-%d') if n.published_at else '' }}</div>
+      </div>
+      {% endfor %}{% else %}<p style="color:var(--muted);font-size:13px">لا توجد أخبار</p>{% endif %}
+    </div>
+  </div>
+
+  <!-- Insider Transactions -->
+  {% if insiders %}
+  <div class="section-card full-col">
+    <div class="sec-title">🏛 صفقات المطلعين</div>
+    {% for ins in insiders[:8] %}
+    <div class="insider-row">
+      <span>{{ ins.person_name or '—' }}</span>
+      <span>{{ ins.title or '' }}</span>
+      <span class="{% if ins.transaction_code in ['P','A'] %}ins-buy{% else %}ins-sell{% endif %}">{% if ins.transaction_code in ['P','A'] %}شراء{% else %}بيع{% endif %}</span>
+      <span style="font-family:'JetBrains Mono';font-size:12px">{{ ins.share or 0 | int }} سهم</span>
+      <span style="color:var(--muted);font-size:11px">{{ ins.transaction_date or '' }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- X10 Modal -->
+<div id="x10Modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:999;align-items:center;justify-content:center;backdrop-filter:blur(6px);">
+  <div style="background:#0D1420;border:1px solid rgba(255,255,255,0.1);border-radius:20px;padding:28px;width:500px;max-width:92vw;position:relative;max-height:90vh;overflow-y:auto;">
+    <button onclick="document.getElementById('x10Modal').style.display='none'" style="position:absolute;top:14px;left:14px;background:rgba(255,255,255,0.08);border:none;color:#fff;border-radius:8px;padding:4px 12px;cursor:pointer;font-size:16px;">✕</button>
+    <div style="text-align:center;margin-bottom:20px;">
+      <div style="font-size:32px;">🚀</div>
+      <div style="font-size:18px;font-weight:800;color:#F59E0B;margin-top:6px;">كيف يُحسب X10 Potential؟</div>
+    </div>
+    <div id="x10Breakdown"></div>
+  </div>
+</div>
+
+<script>
+var X10_DATA = {{ x10_data | tojson if x10_data else '{}' }};
+function showX10Popup() {
+  document.getElementById('x10Modal').style.display = 'flex';
+  var bd = document.getElementById('x10Breakdown');
+  var data = X10_DATA;
+  if (!data || !data.score) {
+    bd.innerHTML = '<div style="text-align:center;color:#9CA3AF;font-size:13px;padding:20px">لا توجد بيانات تفصيلية</div>';
+    return;
+  }
+  var html = '<div style="text-align:center;padding:14px;background:' + (data.potential_color||'#8B5CF6') + '18;border-radius:12px;margin-bottom:16px;">' +
+    '<div style="font-size:42px;font-weight:900;color:' + (data.potential_color||'#8B5CF6') + ';font-family:monospace">' + data.score + '</div>' +
+    '<div style="font-size:18px;font-weight:700;margin-top:4px;">' + (data.potential_icon||'') + ' ' + (data.potential_label||'') + '</div></div>';
+  var bk = data.breakdown || {};
+  for (var key in bk) {
+    var val = bk[key];
+    var pct = Math.round((val.score / val.max) * 100);
+    var col = pct >= 70 ? '#10B981' : pct >= 40 ? '#F59E0B' : '#EF4444';
+    html += '<div style="margin-bottom:12px;"><div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:5px;"><span style="color:#E2E8F0;font-weight:600">' + val.label + '</span><span style="font-family:monospace;color:' + col + ';font-weight:700">' + val.score + '/' + val.max + '</span></div><div style="background:rgba(255,255,255,0.07);border-radius:99px;height:7px;"><div style="width:' + pct + '%;background:' + col + ';height:7px;border-radius:99px;"></div></div></div>';
+  }
+  bd.innerHTML = html;
+}
+document.getElementById('x10Modal').addEventListener('click', function(e) {
+  if (e.target === this) this.style.display = 'none';
+});
+</script>
+
+{% endblock %}
